@@ -22,11 +22,12 @@ class CWmonitor(QWidget):
         
     def setup(self):
       self.setFixedSize(834, 300)
-      self.setWindowTitle('CW Monitor')     
+      self.setWindowTitle('CW Monitor')
   
       self.factionSelectBox = QComboBox()
       self.factionSelectBox.addItem("Davion"            , "5" )
       self.factionSelectBox.addItem("Liao"              , "7" )
+      self.factionSelectBox.addItem("Marik"             , "8" )
       self.factionSelectBox.addItem("Steiner"           , "10")
       self.factionSelectBox.addItem("Rasalhague"        , "9" )
       self.factionSelectBox.addItem("Kurita"            , "6" )
