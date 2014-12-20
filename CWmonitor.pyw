@@ -34,50 +34,46 @@ class Factions():
 
 class MainWindow(QMainWindow):
   def __init__(self):
-      super(MainWindow, self).__init__()
-      self.initUI()
-      self.setCentralWidget(self.tablesWidget)
+    super(MainWindow, self).__init__()
+    self.initUI()
+    self.setCentralWidget(self.tablesWidget)
       
   def initUI(self):               
-      exitAction = QAction(QIcon('exit.png'), '&Exit', self)        
-      exitAction.setShortcut('Ctrl+Q')
-      exitAction.setStatusTip('Exit application')
-      exitAction.triggered.connect(qApp.quit)
+    exitAction = QAction(QIcon('exit.png'), '&Exit', self)        
+    exitAction.setShortcut('Ctrl+Q')
+    exitAction.setStatusTip('Exit application')
+    exitAction.triggered.connect(qApp.quit)
 
-      self.statusBar()
+    self.statusBar()
 
-      # File
-      menubar = self.menuBar()
-      fileMenu = menubar.addMenu('&File')
-      fileMenu.addAction(exitAction)
-      
-      # Tools
-      toolsMenu = menubar.addMenu('&Tools')
-      
-      nothingAction = QAction("&Coming \"Soon\"", self)    
-      toolsMenu.addAction(nothingAction)
-      
-      # Help
-      helpMenu = menubar.addMenu('&Help')
-      
-      aboutAction = QAction("&About", self)
-      aboutAction.setShortcut("Ctrl+A")
-      self.connect(aboutAction, SIGNAL("triggered()"), self.about)            
-      helpMenu.addAction(aboutAction)
-      
-
-      
-      self.resize(832, 300)
-      self.setFixedWidth(832)
-      self.setMinimumHeight(350)
-      self.setMaximumHeight(350)
-      self.setSizePolicy(QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding))
-      
-      self.setWindowTitle('CW Monitor')
-
-      self.tablesWidget = CWmonitor()
-      
-      self.show()
+    # File
+    menubar = self.menuBar()
+    fileMenu = menubar.addMenu('&File')
+    fileMenu.addAction(exitAction)
+    
+    # Tools
+    toolsMenu = menubar.addMenu('&Tools')
+    
+    nothingAction = QAction("&Coming \"Soon\"", self)    
+    toolsMenu.addAction(nothingAction)
+    
+    # Help
+    helpMenu = menubar.addMenu('&Help')
+    
+    aboutAction = QAction("&About", self)
+    aboutAction.setShortcut("Ctrl+A")
+    self.connect(aboutAction, SIGNAL("triggered()"), self.about)            
+    helpMenu.addAction(aboutAction)
+    
+    self.resize(832, 300)
+    self.setFixedWidth(832)
+    self.setMinimumHeight(350)
+    self.setMaximumHeight(350)
+    self.setSizePolicy(QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding))
+    
+    self.setWindowTitle('CW Monitor')
+    self.tablesWidget = CWmonitor()
+    self.show()
       
   def about(self):
     about = "Version %s\n" % (0.2) 
@@ -97,12 +93,17 @@ class CWmonitor(QWidget):
   
   def __init__(self):
     super(CWmonitor, self).__init__()
-    self.setup()
     self.updateMap = False
-    self.update()
+    self.setup()
+    self.message("Client will automatically update on 15 minute clock intervals (10:00, 10:15, 10:30, 10:45, etc.)")
+    self.onScheduledUpdate()
       
   def setup(self):
     self.setSizePolicy(QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum))
+    
+    ## Update timer
+    self.timer = QTimer(self)
+    self.connect(self.timer, SIGNAL("timeout()"), self.onScheduledUpdate)    
     
     ## Tables and attacker wins
     self.factionSelectBox = QComboBox()
@@ -153,8 +154,9 @@ class CWmonitor(QWidget):
     self.messageBox.setFixedHeight(50)    
     layout.addWidget(self.messageBox)
     
-    updateButton = QPushButton("Update")
-    updateButton.clicked.connect(self.update)    
+    updateButton = QPushButton("Manual Update")
+    updateButton.clicked.connect(self.onUpdateButton)    
+    
     layout.addWidget(updateButton)
     
     ## Inner sphere map
@@ -167,10 +169,6 @@ class CWmonitor(QWidget):
     self.innerSphereMap.hide()
     
     layout.addStretch(1)
-    
-    ## QTimer
-    self.timer = QTimer(self)
-    self.connect(self.timer, SIGNAL("timeout()"), self.update)
 
   def createMessageBox(self):
     self.messageBox = QTextEdit()
@@ -181,40 +179,48 @@ class CWmonitor(QWidget):
     return self.messageBox
       
   def message(self, txt):
-      self.messageBox.moveCursor(QTextCursor.End)
-      self.messageBox.append(txt)
-      self.messageBox.moveCursor(QTextCursor.End)
-      self.messageBox.ensureCursorVisible()
+    self.messageBox.moveCursor(QTextCursor.End)
+    self.messageBox.append(txt)
+    self.messageBox.moveCursor(QTextCursor.End)
+    self.messageBox.ensureCursorVisible()
+  
+  def loadJSON(self):
+    jsonurl = urllib.urlopen(URL)
+    self.data = json.loads(jsonurl.read())
+    t = datetime.datetime.time(datetime.datetime.now())
+    timeTillFifteeen = 15 - (t.minute % 15) # number of minutes until the next 15 minute period 
+    self.timer.start((timeTillFifteeen * 60 * 1000) + 30000) # plus 30 seconds, to make up for potential time differences
+    
+  def onScheduledUpdate(self):
+    self.message("Scheduled update on " + time.asctime(time.localtime(time.time())))
+    self.loadJSON()
+    self.update()    
+    
+  def onUpdateButton(self):
+    self.message("Manual update on " + time.asctime(time.localtime(time.time())))
+    self.loadJSON()
+    self.update()
   
   def update(self):
-    jsonurl = urllib.urlopen(URL)
-    data = json.loads(jsonurl.read())
-    
     factionID = self.factionSelectBox.itemData(self.factionSelectBox.currentIndex())
     
     # Update Tables
     self.defendTable.setRowCount(0)
     for id in range (1,2241):
-      if (data[str(id)]["invading"]["id"] != "0") and (data[str(id)]["owner"]["id"] == factionID):
-        self.addToDefendTable(data[str(id)], id)
+      if (self.data[str(id)]["invading"]["id"] != "0") and (self.data[str(id)]["owner"]["id"] == factionID):
+        self.addToDefendTable(self.data[str(id)], id)
         
     self.attackTable.setRowCount(0)
     for id in range (1,2241):
-      if (data[str(id)]["invading"]["id"] == factionID):
-        self.addToAttackTable(data[str(id)], id)
+      if (self.data[str(id)]["invading"]["id"] == factionID):
+        self.addToAttackTable(self.data[str(id)], id)
     
     # Update Map
     if (self.updateMap):
       if len(self.innerSphereMap.planetDict) < 2240:
-        self.innerSphereMap.populateWithPlanets(data)
+        self.innerSphereMap.populateWithPlanets(self.data)
       else:
-        self.innerSphereMap.updatePlanetFactions(data)
-      
-    self.timer.stop()
-    t = datetime.datetime.time(datetime.datetime.now())
-    timeTillFifteeen = 15 - (t.minute % 15) # number of minutes until the next 15 minute period
-    self.timer.start(timeTillFifteeen * 60 * 1000)
-    self.message("Updated on " + time.asctime(time.localtime(time.time())))
+        self.innerSphereMap.updatePlanetFactions(self.data)
     
   def addToDefendTable(self, planetInfo, id):
     count = self.defendTable.rowCount()
@@ -277,7 +283,7 @@ class CWmonitor(QWidget):
       
       self.window().setMinimumHeight(430) #sort of a temporary workaround due to a few issues with inner sphere map sizing and layouts
       self.window().setMaximumHeight(970)
-      self.window().resize(self.width(), 970) 
+      self.window().resize(self.width(), 970)
       self.update()
   
   def onHighlightPlanets(self):
@@ -294,7 +300,7 @@ class CWmonitor(QWidget):
         if self.attackTable.item(row,0).isSelected():
           planet.setOutline(True)
         else:
-          planet.setOutline(False)        
+          planet.setOutline(False)
 
 class InnerSphereMap(QGraphicsView):
   MapWidth = 811
@@ -335,7 +341,7 @@ class InnerSphereMap(QGraphicsView):
         
 class Planet(QGraphicsEllipseItem):
   def __init__(self, id, x, y, faction):
-    QGraphicsEllipseItem.__init__(self, x, y, 3, 3)
+    QGraphicsEllipseItem.__init__(self, x, y, 3.5, 3.5)
     self.id = id
     self.faction = faction
     self.setFaction(faction)
@@ -375,7 +381,7 @@ class Planet(QGraphicsEllipseItem):
     self.setBrush(brush)
     
     self.update()
-      
+    
   def setOutline(self, selected):
     if selected:
       self.setPen(self.highlightPen)
