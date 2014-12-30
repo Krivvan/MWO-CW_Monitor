@@ -1,4 +1,5 @@
 URL = "https://static.mwomercs.com/data/cw/mapdata.json"
+TOTAL_TERRITORIES = 15.0
 
 import sys
 
@@ -31,7 +32,9 @@ class Factions():
   ClanGhostBear_ID   = "14"
   ClanSmokeJaguar_ID = "11"
   IncludedFactions   = [Comstar_ID, Davion_ID, Liao_ID, Marik_ID, Steiner_ID, Rasalhague_ID, Kurita_ID, ClanJadeFalcon_ID, ClanWolf_ID, ClanGhostBear_ID, ClanSmokeJaguar_ID]
-
+  IS_Factions        = [Davion_ID, Liao_ID, Marik_ID, Steiner_ID, Rasalhague_ID, Kurita_ID]
+  Clan_Factions      = [ClanJadeFalcon_ID, ClanWolf_ID, ClanGhostBear_ID, ClanSmokeJaguar_ID]
+  
 class MainWindow(QMainWindow):
   def __init__(self):
     super(MainWindow, self).__init__()
@@ -39,23 +42,40 @@ class MainWindow(QMainWindow):
     self.setCentralWidget(self.tablesWidget)
       
   def initUI(self):               
-    exitAction = QAction(QIcon('exit.png'), '&Exit', self)        
+    exitAction = QAction('&Exit', self)        
     exitAction.setShortcut('Ctrl+Q')
-    exitAction.setStatusTip('Exit application')
     exitAction.triggered.connect(qApp.quit)
 
-    self.statusBar()
-
-    # File
+    #self.statusBar()
     menubar = self.menuBar()
+    
+    # File
     fileMenu = menubar.addMenu('&File')
     fileMenu.addAction(exitAction)
     
-    # Tools
-    toolsMenu = menubar.addMenu('&Tools')
+    # Options
+    optionsMenu = menubar.addMenu('&Options') 
+    skinsMenu = optionsMenu.addMenu('&Skins')
     
-    nothingAction = QAction("&Coming \"Soon\"", self)    
-    toolsMenu.addAction(nothingAction)
+    defaultSkin = QAction("&Default", self)
+    defaultSkin.setCheckable(True)
+    defaultSkin.setObjectName("DefaultSkin")
+    innerSphereSkin = QAction("&Inner Sphere HUD", self)
+    innerSphereSkin.setCheckable(True)
+    innerSphereSkin.setObjectName("InnerSphereSkin")
+    clanSkin = QAction("&Clan HUD", self)
+    clanSkin.setCheckable(True)
+    clanSkin.setObjectName("ClanSkin")
+    skinsGroup = QActionGroup(self)
+    skinsGroup.addAction(defaultSkin)
+    skinsGroup.addAction(innerSphereSkin)
+    skinsGroup.addAction(clanSkin)
+    defaultSkin.setChecked(True)
+    skinsGroup.triggered.connect(self.skinChanged)    
+    
+    skinsMenu.addAction(defaultSkin)
+    skinsMenu.addAction(innerSphereSkin)
+    skinsMenu.addAction(clanSkin)
     
     # Help
     helpMenu = menubar.addMenu('&Help')
@@ -65,13 +85,13 @@ class MainWindow(QMainWindow):
     self.connect(aboutAction, SIGNAL("triggered()"), self.about)            
     helpMenu.addAction(aboutAction)
     
-    self.resize(832, 300)
-    self.setFixedWidth(832)
+    self.resize(840, 300)
+    self.setFixedWidth(840)
     self.setMinimumHeight(350)
     self.setMaximumHeight(350)
     self.setSizePolicy(QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding))
     
-    self.setWindowTitle('CW Monitor')
+    self.setWindowTitle('Comstar Reports')
     self.tablesWidget = CWmonitor()
     self.show()
       
@@ -82,11 +102,111 @@ class MainWindow(QMainWindow):
     box.setInformativeText(about)
     box.setText("Made by Krivvan<br>More significant updates and additions to come!<br><br>\
                  Tips are absolutely not necessary, but if you insist:<br>\
-                 Bitcoin Address: 1C3EQMqu3FDMFvHucFskByFPxQnNVSENdt<br> \
-                 <img src='1AEhKmoYjKdNeoV2RViPZ39zgWkq1vWRKi.png' /> ")
+                 Bitcoin Address: 1AEhKmoYjKdNeoV2RViPZ39zgWkq1vWRKi<br> \
+                 <img src='assets/1AEhKmoYjKdNeoV2RViPZ39zgWkq1vWRKi.png' /> ")
     box.setWindowTitle("About")
     box.exec_()
+  
+  
+  # def check_sourceforge_version(html):
 
+    # import re
+    # regex=re.compile("Download MWOMonitor_(.*?)\.zip", re.DOTALL | re.MULTILINE)
+    # try:
+    # match = regex.search(html)
+    # if len(match.groups())>0:
+      # return match.group(1)
+    # except Exception, err:
+    # print "Couldn't match :(", err, err.message
+    # return None     
+    
+  def skinChanged(self, action):
+    if action.objectName() == "DefaultSkin":
+      qApp.setStyleSheet("")
+    elif action.objectName() == "InnerSphereSkin":
+      styleSheet =  "QWidget {color: IS_color;\
+                      background-color: IS_farBackground;\
+                      font-family: Microsoft Sans Serif;\
+                      font-weight: Bold;}\
+                    QMenuBar::item {color: IS_color;\
+                      background-color: IS_farBackground;}\
+                    QMenuBar::item:selected {background-color: IS_selected;\
+                      selection-background-color: IS_selected;}\
+                    QMenu::item {color: IS_color;\
+                      background-color: IS_farBackground;}\
+                    QMenu::item:selected {background-color: IS_selected;\
+                      selection-background-color: IS_selected;}\
+                    QTableWidget {background-color: IS_middleBackground;\
+                      selection-background-color: IS_selected;\
+                      selection-color: IS_color;\
+                      border-color: IS_border;\
+                      border-width: 1px;\
+                      border-style: inset;}\
+                    QHeaderView::section {background-color: IS_middleBackground;}\
+                    QTableWidget::item:focus { border: 0px;\
+                      selection-background-color: IS_selected;}\
+                    QComboBox {background-color: IS_middleBackground;\
+                      selection-background-color: IS_middleBackground;\
+                      border-color: ;\
+                      border-width: 1px;}\
+                    QListView {background-color: IS_middleBackground;\
+                      selection-background-color: IS_selected;}\
+                    QTextEdit {background-color: IS_middleBackground;\
+                      border-color: IS_border;\
+                      border-width: 1px;\
+                      border-style: inset;}\
+                    QPushButton {background-color: IS_middleBackground;}"
+                    
+      styleSheet = styleSheet.replace("IS_color",            "rgb(146, 160, 65)")
+      styleSheet = styleSheet.replace("IS_farBackground",    "rgb(26, 17, 2)")
+      styleSheet = styleSheet.replace("IS_selected",         "rgb(121, 104, 52)")
+      styleSheet = styleSheet.replace("IS_middleBackground", "rgb(78, 63, 30)")
+      styleSheet = styleSheet.replace("IS_border",           "rgb(104 ,84 ,49)")
+      
+      qApp.setStyleSheet(styleSheet)
+    elif action.objectName() == "ClanSkin":
+      styleSheet =  "QWidget {color: Clan_color;\
+                      background-color: Clan_farBackground;\
+                      font-family: Microsoft Sans Serif;\
+                      font-weight: Bold;}\
+                    QMenuBar::item {color: Clan_color;\
+                      background-color: Clan_farBackground;}\
+                    QMenuBar::item:selected {background-color: Clan_selected;\
+                      selection-background-color: Clan_selected;}\
+                    QMenu::item {color: Clan_color;\
+                      background-color: Clan_farBackground;}\
+                    QMenu::item:selected {background-color: Clan_selected;\
+                      selection-background-color: Clan_selected;}\
+                    QTableWidget {background-color: Clan_middleBackground;\
+                      selection-background-color: Clan_selected;\
+                      selection-color: Clan_color;\
+                      border-color: Clan_border;\
+                      border-width: 1px;\
+                      border-style: inset;}\
+                    QHeaderView::section {background-color: Clan_middleBackground;}\
+                    QTableWidget::item:focus { border: 0px;\
+                      selection-background-color: Clan_selected;}\
+                    QComboBox {background-color: Clan_middleBackground;\
+                      selection-background-color: Clan_middleBackground;\
+                      border-color: ;\
+                      border-width: 1px;}\
+                    QListView {background-color: Clan_middleBackground;\
+                      selection-background-color: Clan_selected;}\
+                    QTextEdit {background-color: Clan_middleBackground;\
+                      border-color: Clan_border;\
+                      border-width: 1px;\
+                      border-style: inset;}\
+                    QPushButton {background-color: Clan_middleBackground;}"
+                    
+      styleSheet = styleSheet.replace("Clan_color",            "rgb(195, 233, 236)")
+      styleSheet = styleSheet.replace("Clan_farBackground",    "rgb(33, 76, 92)")
+      styleSheet = styleSheet.replace("Clan_selected",         "rgb(21, 157, 197)")
+      styleSheet = styleSheet.replace("Clan_middleBackground", "rgb(22, 96, 123)")
+      styleSheet = styleSheet.replace("Clan_border",           "rgb(90 ,180 ,206)")
+      
+      qApp.setStyleSheet(styleSheet)
+ 
+ 
 class CWmonitor(QWidget):
   upArrowIcon   = u'\u25b2' # unicode for arrows
   downArrowIcon = u'\u25bc'
@@ -94,6 +214,7 @@ class CWmonitor(QWidget):
   def __init__(self):
     super(CWmonitor, self).__init__()
     self.updateMap = False
+    self.factionID = Factions.Davion_ID
     self.setup()
     self.message("Client will automatically update on 15 minute clock intervals (10:00, 10:15, 10:30, 10:45, etc.)")
     self.onScheduledUpdate()
@@ -107,38 +228,42 @@ class CWmonitor(QWidget):
     
     ## Tables and attacker wins
     self.factionSelectBox = QComboBox()
-    self.factionSelectBox.addItem("Davion"            , Factions.Davion_ID         )
-    self.factionSelectBox.addItem("Liao"              , Factions.Liao_ID           )
-    self.factionSelectBox.addItem("Marik"             , Factions.Marik_ID          )
-    self.factionSelectBox.addItem("Steiner"           , Factions.Steiner_ID        )
-    self.factionSelectBox.addItem("Rasalhague"        , Factions.Rasalhague_ID     )
-    self.factionSelectBox.addItem("Kurita"            , Factions.Kurita_ID         )
-    self.factionSelectBox.addItem("Clan Jade Falcon"  , Factions.ClanJadeFalcon_ID )
-    self.factionSelectBox.addItem("Clan Wolf"         , Factions.ClanWolf_ID       )
-    self.factionSelectBox.addItem("Clan Ghost Bear"   , Factions.ClanGhostBear_ID  )
-    self.factionSelectBox.addItem("Clan Smoke Jaguar" , Factions.ClanSmokeJaguar_ID)
-    self.factionSelectBox.currentIndexChanged.connect(self.update)
+    self.factionSelectBox.addItem("DAVION"            , Factions.Davion_ID         )
+    self.factionSelectBox.addItem("LIAO"              , Factions.Liao_ID           )
+    self.factionSelectBox.addItem("MARIK"             , Factions.Marik_ID          )
+    self.factionSelectBox.addItem("STEINER"           , Factions.Steiner_ID        )
+    self.factionSelectBox.addItem("RASALHAGUE"        , Factions.Rasalhague_ID     )
+    self.factionSelectBox.addItem("KURITA"            , Factions.Kurita_ID         )
+    self.factionSelectBox.addItem("CLAN JADE FALCON"  , Factions.ClanJadeFalcon_ID )
+    self.factionSelectBox.addItem("CLAN WOLF"         , Factions.ClanWolf_ID       )
+    self.factionSelectBox.addItem("CLAN GHOST BEAR"   , Factions.ClanGhostBear_ID  )
+    self.factionSelectBox.addItem("CLAN SMOKE JAGUAR" , Factions.ClanSmokeJaguar_ID)
+    self.factionSelectBox.currentIndexChanged.connect(self.onChangeFaction)
 
     self.defendTable = QTableWidget()
     self.defendTable.setColumnCount(4)
     self.defendTable.setRowCount(0)
     self.defendTable.verticalHeader().setVisible(False)
-    self.defendTable.setHorizontalHeaderLabels("Planet,Defender,Attacker Wins,Attacker".split(","))
+    self.defendTable.setHorizontalHeaderLabels("PLANET,DEFENDER,WINS,ATTACKER".split(","))
+    self.defendTable.horizontalHeader().setStretchLastSection(True)
     self.defendTable.setSelectionBehavior(QAbstractItemView.SelectRows)
-    self.defendTable.setMaximumWidth(402) # TODO: lay it out better and resort less on fixed sizes, just wanted it working for now
+    self.defendTable.setMaximumWidth(415) # TODO: lay it out better and resort less on fixed sizes, just wanted it working for now
     self.defendTable.setFixedHeight(150)
     self.defendTable.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
+    self.defendTable.setFocusPolicy(Qt.NoFocus)
     self.defendTable.itemSelectionChanged.connect(self.onHighlightPlanets)
     
     self.attackTable = QTableWidget()
     self.attackTable.setColumnCount(4)
     self.attackTable.setRowCount(0)
     self.attackTable.verticalHeader().setVisible(False)
-    self.attackTable.setHorizontalHeaderLabels("Planet,Attacker,Attacker Wins,Defender".split(","))
+    self.attackTable.setHorizontalHeaderLabels("PLANET,ATTACKER,WINS,DEFENDER".split(","))
+    self.attackTable.horizontalHeader().setStretchLastSection(True)    
     self.attackTable.setSelectionBehavior(QAbstractItemView.SelectRows)
-    self.attackTable.setMaximumWidth(402)
+    self.attackTable.setMaximumWidth(415)
     self.attackTable.setFixedHeight(150)
     self.attackTable.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
+    self.attackTable.setFocusPolicy(Qt.NoFocus)
     self.attackTable.itemSelectionChanged.connect(self.onHighlightPlanets)
     
     layout = QVBoxLayout()
@@ -154,13 +279,13 @@ class CWmonitor(QWidget):
     self.messageBox.setFixedHeight(50)    
     layout.addWidget(self.messageBox)
     
-    updateButton = QPushButton("Manual Update")
+    updateButton = QPushButton("MANUAL UPDATE")
     updateButton.clicked.connect(self.onUpdateButton)    
     
     layout.addWidget(updateButton)
     
     ## Inner sphere map
-    self.showMapButton = QPushButton(self.downArrowIcon + " Show Inner Sphere Map " + self.downArrowIcon)
+    self.showMapButton = QPushButton(self.downArrowIcon + " SHOW INNER SPHERE MAP " + self.downArrowIcon)
     self.showMapButton.clicked.connect(self.onShowMapButtonClicked)
     layout.addWidget(self.showMapButton)
     
@@ -169,7 +294,15 @@ class CWmonitor(QWidget):
     self.innerSphereMap.hide()
     
     layout.addStretch(1)
-
+  
+  def onChangeFaction(self):
+    self.factionID = self.factionSelectBox.itemData(self.factionSelectBox.currentIndex())
+    if (self.factionID in Factions.IS_Factions):
+      self.window().setWindowTitle("Comstar Reports")
+    else:
+      self.window().setWindowTitle("Operation Revival Status")
+    self.update()
+  
   def createMessageBox(self):
     self.messageBox = QTextEdit()
     self.messageBox.setReadOnly(True)
@@ -192,27 +325,25 @@ class CWmonitor(QWidget):
     self.timer.start((timeTillFifteeen * 60 * 1000) + 30000) # plus 30 seconds, to make up for potential time differences
     
   def onScheduledUpdate(self):
-    self.message("Scheduled update on " + time.asctime(time.localtime(time.time())))
-    self.loadJSON()
-    self.update()    
-    
-  def onUpdateButton(self):
-    self.message("Manual update on " + time.asctime(time.localtime(time.time())))
     self.loadJSON()
     self.update()
+    self.message("Scheduled update on " + time.asctime(time.localtime(time.time())))
+    
+  def onUpdateButton(self):
+    self.loadJSON()
+    self.update()
+    self.message("Manual update on " + time.asctime(time.localtime(time.time())))
   
   def update(self):
-    factionID = self.factionSelectBox.itemData(self.factionSelectBox.currentIndex())
-    
     # Update Tables
     self.defendTable.setRowCount(0)
     for id in range (1,2241):
-      if (self.data[str(id)]["invading"]["id"] != "0") and (self.data[str(id)]["owner"]["id"] == factionID):
+      if (self.data[str(id)]["invading"]["id"] != "0") and (self.data[str(id)]["owner"]["id"] == self.factionID):
         self.addToDefendTable(self.data[str(id)], id)
         
     self.attackTable.setRowCount(0)
     for id in range (1,2241):
-      if (self.data[str(id)]["invading"]["id"] == factionID):
+      if (self.data[str(id)]["invading"]["id"] == self.factionID):
         self.addToAttackTable(self.data[str(id)], id)
     
     # Update Map
@@ -236,7 +367,9 @@ class CWmonitor(QWidget):
     self.defendTable.setItem(count, 1, ownerItem)
     
     attackerWins = sum( [bin(int(item)).count("1") for item in planetInfo["territories"]] )
-    contestedItem = QTableWidgetItem(str(attackerWins))
+    attackerPercent = int(attackerWins / TOTAL_TERRITORIES * 100)
+    attackerWinsString = str(attackerWins) + " (" + str(attackerPercent) + "%)"
+    contestedItem = QTableWidgetItem(attackerWinsString)
     contestedItem.setTextAlignment(Qt.AlignCenter)
     contestedItem.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
     self.defendTable.setItem(count, 2, contestedItem)
@@ -259,7 +392,10 @@ class CWmonitor(QWidget):
     self.attackTable.setItem(count, 1, invaderItem)
     
     attackerWins = sum( [bin(int(item)).count("1") for item in planetInfo["territories"]] )
-    contestedItem = QTableWidgetItem(str(attackerWins))
+    
+    attackerPercent = int(attackerWins / TOTAL_TERRITORIES * 100)
+    attackerWinsString = str(attackerWins) + " (" + str(attackerPercent) + "%)"
+    contestedItem = QTableWidgetItem(attackerWinsString)
     contestedItem.setTextAlignment(Qt.AlignCenter)
     contestedItem.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
     self.attackTable.setItem(count, 2, contestedItem)
@@ -275,10 +411,10 @@ class CWmonitor(QWidget):
       self.window().setFixedHeight(350)
       self.adjustSize()
       self.window().adjustSize()
-      self.showMapButton.setText(self.downArrowIcon + " Show Inner Sphere Map " + self.downArrowIcon)
+      self.showMapButton.setText(self.downArrowIcon + " SHOW INNER SPHERE MAP " + self.downArrowIcon)
     else:
       self.innerSphereMap.show()
-      self.showMapButton.setText(self.upArrowIcon +   " Hide Inner Sphere Map " + self.upArrowIcon)
+      self.showMapButton.setText(self.upArrowIcon +   " HIDE INNER SPHERE MAP " + self.upArrowIcon)
       self.updateMap = True
       
       self.window().setMinimumHeight(430) #sort of a temporary workaround due to a few issues with inner sphere map sizing and layouts
@@ -310,7 +446,7 @@ class InnerSphereMap(QGraphicsView):
     self.scene = QGraphicsScene(self)
     self.scene.setSceneRect(QRectF(0,0,self.MapWidth,self.MapHeight))
     self.setScene(self.scene)
-    self.scene.addPixmap(QPixmap('map.png'))
+    self.scene.addPixmap(QPixmap('assets/map.png'))
     self.planetDict = {}
     self.setDragMode(QGraphicsView.ScrollHandDrag)
     self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
