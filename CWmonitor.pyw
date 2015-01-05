@@ -1,4 +1,5 @@
-URL = "https://static.mwomercs.com/data/cw/mapdata.json"
+#URL = "https://static.mwomercs.com/data/cw/mapdata.json"
+URL = "file:///C:/HobbyWork/mapdata.json"
 TOTAL_TERRITORIES = 15.0
 
 import sys
@@ -42,16 +43,20 @@ class MainWindow(QMainWindow):
     self.setCentralWidget(self.tablesWidget)
       
   def initUI(self):               
-    exitAction = QAction('&Exit', self)        
-    exitAction.setShortcut('Ctrl+Q')
-    exitAction.triggered.connect(qApp.quit)
-
-    #self.statusBar()
     menubar = self.menuBar()
     
     # File
     fileMenu = menubar.addMenu('&File')
+    
+    exitAction = QAction('&Exit', self)        
+    exitAction.setShortcut('Ctrl+Q')
+    exitAction.triggered.connect(qApp.quit)
+
+    checkUpdateAction = QAction('&Check for updates', self)
+    checkUpdateAction.triggered.connect(self.checkForUpdates)
+    
     fileMenu.addAction(exitAction)
+    fileMenu.addAction(checkUpdateAction)
     
     # Options
     optionsMenu = menubar.addMenu('&Options') 
@@ -77,13 +82,24 @@ class MainWindow(QMainWindow):
     skinsMenu.addAction(innerSphereSkin)
     skinsMenu.addAction(clanSkin)
     
+    # Tools
+    toolsMenu = menubar.addMenu('&Tools')
+    
+    timelineAction = QAction("&Generate Timeline Reports", self)
+    self.connect(timelineAction, SIGNAL("triggered()"), self.timeline)
+    toolsMenu.addAction(timelineAction)
+    
+    unitListAction = QAction("&Unit Holdings", self)
+    self.connect(unitListAction, SIGNAL("triggered()"), self.unitList)
+    toolsMenu.addAction(unitListAction)
+    
     # Help
     helpMenu = menubar.addMenu('&Help')
     
     aboutAction = QAction("&About", self)
     aboutAction.setShortcut("Ctrl+A")
-    self.connect(aboutAction, SIGNAL("triggered()"), self.about)            
-    helpMenu.addAction(aboutAction)
+    self.connect(aboutAction, SIGNAL("triggered()"), self.about)
+    helpMenu.addAction(aboutAction)      
     
     self.resize(840, 300)
     self.setFixedWidth(840)
@@ -107,9 +123,17 @@ class MainWindow(QMainWindow):
     box.setWindowTitle("About")
     box.exec_()
   
-  
-  # def check_sourceforge_version(html):
-
+  def timeline(self):
+    self.timelineWindow = TimelineWindow(self)
+    self.timelineWindow.setWindowFlags(Qt.Window)
+    self.timelineWindow.show()
+    
+  def unitList(self):
+    self.tablesWidget.openUnitList()
+ 
+  def checkForUpdates():
+    pass
+    
     # import re
     # regex=re.compile("Download MWOMonitor_(.*?)\.zip", re.DOTALL | re.MULTILINE)
     # try:
@@ -275,8 +299,8 @@ class CWmonitor(QWidget):
     hlayout.addWidget(self.attackTable)
     layout.addLayout(hlayout)
     
-    self.messageBox = self.createMessageBox()
-    self.messageBox.setFixedHeight(50)    
+    self.messageBox = createMessageBox()
+    self.messageBox.setFixedHeight(50)
     layout.addWidget(self.messageBox)
     
     updateButton = QPushButton("MANUAL UPDATE")
@@ -289,7 +313,12 @@ class CWmonitor(QWidget):
     self.showMapButton.clicked.connect(self.onShowMapButtonClicked)
     layout.addWidget(self.showMapButton)
     
-    self.innerSphereMap = InnerSphereMap()    
+    self.innerSphereMap = QGraphicsView()    
+    self.innerSphereMapScene = InnerSphereMap()
+    self.innerSphereMap.setDragMode(QGraphicsView.ScrollHandDrag)
+    self.innerSphereMap.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    self.innerSphereMap.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)      
+    self.innerSphereMap.setScene(self.innerSphereMapScene)
     layout.addWidget(self.innerSphereMap)
     self.innerSphereMap.hide()
     
@@ -302,14 +331,6 @@ class CWmonitor(QWidget):
     else:
       self.window().setWindowTitle("Operation Revival Status")
     self.update()
-  
-  def createMessageBox(self):
-    self.messageBox = QTextEdit()
-    self.messageBox.setReadOnly(True)
-
-    self.messageBox.setStyleSheet("font: 9pt \"Courier\";")
-
-    return self.messageBox
       
   def message(self, txt):
     self.messageBox.moveCursor(QTextCursor.End)
@@ -348,10 +369,11 @@ class CWmonitor(QWidget):
     
     # Update Map
     if (self.updateMap):
-      if len(self.innerSphereMap.planetDict) < 2240:
-        self.innerSphereMap.populateWithPlanets(self.data)
+      if len(self.innerSphereMapScene.planetDict) < 2240:
+        self.innerSphereMapScene.populateWithPlanets(self.data)
+        self.innerSphereMapScene.addDate( "Current: " + ((self.data["generated"])[:-9]) )
       else:
-        self.innerSphereMap.updatePlanetFactions(self.data)
+        self.innerSphereMapScene.updatePlanetFactions(self.data)
     
   def addToDefendTable(self, planetInfo, id):
     count = self.defendTable.rowCount()
@@ -425,37 +447,37 @@ class CWmonitor(QWidget):
   def onHighlightPlanets(self):
     if self.updateMap:
       for row in range(0,self.defendTable.rowCount()):
-        planet = (self.innerSphereMap.planetDict[int(self.defendTable.item(row, 0).data(Qt.UserRole))])
+        planet = (self.innerSphereMapScene.planetDict[int(self.defendTable.item(row, 0).data(Qt.UserRole))])
         if self.defendTable.item(row,0).isSelected():
           planet.setOutline(True)
         else:
           planet.setOutline(False)
           
       for row in range(0,self.attackTable.rowCount()):
-        planet = (self.innerSphereMap.planetDict[int(self.attackTable.item(row, 0).data(Qt.UserRole))])
+        planet = (self.innerSphereMapScene.planetDict[int(self.attackTable.item(row, 0).data(Qt.UserRole))])
         if self.attackTable.item(row,0).isSelected():
           planet.setOutline(True)
         else:
           planet.setOutline(False)
+          
+  def openUnitList(self):
+    unitListWindow = UnitListWindow(self.data, self)
+    unitListWindow.show()
+    
 
-class InnerSphereMap(QGraphicsView):
+class InnerSphereMap(QGraphicsScene):
   MapWidth = 811
   MapHeight = 604
-  def __init__(self):
-    QGraphicsView.__init__(self)
-    self.scene = QGraphicsScene(self)
-    self.scene.setSceneRect(QRectF(0,0,self.MapWidth,self.MapHeight))
-    self.setScene(self.scene)
-    self.scene.addPixmap(QPixmap('assets/map.png'))
+  def __init__(self, parent=None):
+    super(InnerSphereMap, self).__init__(parent)
+    self.addPixmap(QPixmap('assets/map.png'))
+    self.setBackgroundBrush(Qt.black)
     self.planetDict = {}
-    self.setDragMode(QGraphicsView.ScrollHandDrag)
-    self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-    self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     
   def populateWithPlanets(self, data):
     # clear the list, in the possible situation that the list is not fully populated for some reason
     for key, planet in self.planetDict.viewitems():
-      self.scene.removeItem(planet)
+      self.removeItem(planet)
     self.planetDict.clear()
     
     for id in range (2240,0,-1):
@@ -467,13 +489,22 @@ class InnerSphereMap(QGraphicsView):
         y = self.MapHeight - ((y + 430) * (self.MapHeight / 980.0)) # originally flipped
         planet = Planet(id, x, y, ownerID)
         self.planetDict[id] = planet
-        self.scene.addItem(planet)
+        self.addItem(planet)
         
   def updatePlanetFactions(self, data):   
     for id, planet in self.planetDict:
       ownerID = data[str(planet.id)]["owner"]["id"]
       if ownerID in Factions.IncludedFactions:
         planet.setFaction(ownerID)
+        
+  def addDate(self, dateString):
+    dateItem = QGraphicsTextItem()
+    dateItem.setPlainText(dateString)
+    dateItem.setDefaultTextColor(QColor(255,255,255))
+    font = QFont("Sans Serif", 13, QFont.Bold)
+    dateItem.setFont(font)
+    dateItem.setPos(self.MapWidth - QFontMetrics(font).width(dateString) - 20, 20)    
+    self.addItem(dateItem)
         
 class Planet(QGraphicsEllipseItem):
   def __init__(self, id, x, y, faction):
@@ -525,7 +556,227 @@ class Planet(QGraphicsEllipseItem):
     else:
       self.setPen(self.blankPen)
       self.update()
+
+class TimelineWindow(QWidget):
+  def __init__(self, parent=None):
+    super(TimelineWindow, self).__init__(parent)
+    self.setWindowTitle("Invasion Timeline")
+    self.mapScenes = []
+    self.mapDates = []
+    self.mapReports = []
+    self.setup()
     
+  def setup(self):
+    self.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
+  
+    dateTime = datetime.datetime.utcnow() # Game time is in UTC + 1035 directly to year
+
+    self.calendarFrom = QDateTimeEdit()
+    self.calendarFrom.setCalendarPopup(True)
+    self.calendarFrom.setDisplayFormat("MMMM dd, yyyy")
+    self.calendarFrom.setDateRange(QDate(2014, 12, 16), QDate(dateTime.year, dateTime.month, dateTime.day))    
+    self.calendarFrom.setDate(QDate(2014, 12, 16))
+    self.calendarFrom.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+
+    self.calendarTo = QDateTimeEdit()
+    self.calendarTo.setCalendarPopup(True)
+    self.calendarTo.setDisplayFormat("MMMM dd, yyyy")
+    self.calendarTo.setDateRange(QDate(2014, 12, 16), QDate(dateTime.year, dateTime.month, dateTime.day))    
+    self.calendarTo.setDate(QDate(dateTime.year, dateTime.month, dateTime.day))
+    self.calendarTo.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+
+    generateButton = QPushButton("Generate Maps and Reports")
+    generateButton.setSizePolicy(QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum))
+    generateButton.clicked.connect(self.onGenerateMaps)
+    
+    toLabel = QLabel(" to ")
+    toLabel.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
+    
+    dateBoxLayout = QHBoxLayout()
+    dateBoxLayout.addWidget(self.calendarFrom)
+    dateBoxLayout.addWidget(toLabel)
+    dateBoxLayout.addWidget(self.calendarTo)
+    dateBoxLayout.addWidget(generateButton) 
+
+    self.slider = QSlider(Qt.Horizontal)
+    self.slider.setMinimum(0)
+    self.slider.setMaximum(0)
+    self.slider.setSingleStep(1)
+    self.slider.setPageStep(1)
+    self.slider.setTickPosition(QSlider.TicksBothSides)
+    self.slider.setMinimumHeight(15)
+    self.slider.valueChanged.connect(self.onSliderValueChanged)
+    
+    self.sliderButtonLeft = QPushButton("<")
+    self.sliderButtonLeft.setFixedWidth(50)
+    self.sliderButtonLeft.clicked.connect(self.onSliderButtonLeft)
+    self.sliderButtonRight = QPushButton(">")
+    self.sliderButtonRight.setFixedWidth(50)
+    self.sliderButtonRight.clicked.connect(self.onSliderButtonRight)
+    
+    sliderLayout = QHBoxLayout()
+    sliderLayout.addWidget(self.slider)
+    sliderLayout.addWidget(self.sliderButtonLeft)
+    sliderLayout.addWidget(self.sliderButtonRight)
+    
+    self.innerSphereMap = QGraphicsView()
+    self.innerSphereMap.setDragMode(QGraphicsView.ScrollHandDrag)
+    self.innerSphereMap.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    self.innerSphereMap.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    self.innerSphereMap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+    placeholderScene = QGraphicsScene(self)
+    placeholderScene.setBackgroundBrush(Qt.black)
+    self.innerSphereMap.setScene(placeholderScene)
+    #self.innerSphereMap.setMaximumSize(1000,InnerSphereMap.MapHeight)
+    
+    self.reportBox = createMessageBox()
+    self.reportBox.setMinimumWidth(200)
+    self.reportBox.setMaximumWidth(400)
+    
+    reportLayout = QHBoxLayout()
+    reportLayout.addWidget(self.innerSphereMap)
+    reportLayout.addWidget(self.reportBox)
+
+    layout = QVBoxLayout()
+    self.setLayout(layout)
+    layout.addLayout(dateBoxLayout)
+    layout.addLayout(sliderLayout)
+    layout.addLayout(reportLayout)
+    
+    self.slider.hide()
+    self.sliderButtonRight.hide()
+    self.sliderButtonLeft.hide()
+    self.innerSphereMap.hide()
+    self.reportBox.hide()
+    
+  def message(self, txt):
+    self.reportBox.moveCursor(QTextCursor.End)
+    self.reportBox.append(txt)
+    self.reportBox.moveCursor(QTextCursor.End)
+    self.reportBox.ensureCursorVisible()
+    
+  def onGenerateMaps(self):
+    self.mapDates = []
+    self.mapScenes = []
+
+    startDate = self.calendarFrom.date()
+    endDate = self.calendarTo.date()
+    
+    nDate = startDate
+    while nDate <= endDate:
+      self.mapDates.append(nDate)
+      nDate = nDate.addDays(1)
+    
+    progressBarDialog = QProgressDialog("Starting map generation...", "Cancel", 0, len(self.mapDates))
+    progressBarDialog.setWindowModality(Qt.WindowModal)
+    progressBarDialog.setWindowTitle("Creating Timeline")
+    progressBarDialog.show()
+    qApp.processEvents()
+    
+    progress = 0
+    oldData = None
+      
+    for date in self.mapDates:
+      year = str(date.year() + 1035)
+      month = str(date.month()).zfill(2)
+      day = str(date.day()).zfill(2)
+      
+      progressBarDialog.setValue(progress)
+      if (progressBarDialog.wasCanceled()):
+        break
+      qApp.processEvents()      
+      
+      progressBarDialog.setLabelText("Accessing data archives for ("+year+"-"+month+"-"+day+")...")
+      qApp.processEvents()
+      
+      dataURL = "https://static.mwomercs.com/data/cw/mapdata-" + year + "-" + month + "-" + day + "T05-00" + ".json"
+      #dataURL = "file:///C:/HobbyWork/mapdata-" + year + "-" + month + "-" + day + "T05-00" + ".json"
+      # TODO: catch exception when urlopen fails
+      jsonurl = urllib.urlopen(dataURL)
+      data = json.loads(jsonurl.read())
+      
+      progressBarDialog.setLabelText("Generating map for ("+year+"-"+month+"-"+day+")...")
+      qApp.processEvents()
+      
+      newMapScene = InnerSphereMap(self)
+      newMapScene.populateWithPlanets(data)
+      newMapScene.addDate((data["generated"])[:-9])
+      
+      self.mapScenes.append(newMapScene)
+      
+      progressBarDialog.setLabelText("Writing reports for ("+year+"-"+month+"-"+day+")...")
+      qApp.processEvents()      
+
+      report = "No report available"
+      defenseReport = "\n\nSuccessful defence actions:"
+      attackReport = "Successful attacks:"
+      
+      if (oldData != None):
+        for id in range (1,2241):
+          if (oldData[str(id)]["contested"] == "1"):
+            if (oldData[str(id)]["owner"]["id"] == data[str(id)]["owner"]["id"]):
+              planetName = oldData[str(id)]["name"]
+              defender = oldData[str(id)]["owner"]["name"]
+              attacker = oldData[str(id)]["invading"]["name"]
+              defenseReportLine = "\n" + defender + " defended " + planetName + " from " + attacker
+              defenseReport = defenseReport + defenseReportLine
+            elif (oldData[str(id)]["owner"]["id"] != data[str(id)]["owner"]["id"]):
+              planetName = oldData[str(id)]["name"]
+              defender = oldData[str(id)]["owner"]["name"]
+              attacker = oldData[str(id)]["invading"]["name"]
+              attackReportLine = "\n" + attacker + " has taken " + planetName + " from " + defender
+              attackReport = attackReport + attackReportLine         
+        report = attackReport + defenseReport
+      
+      self.mapReports.append(report)
+      
+      progress += 1
+      oldData = data
+      
+    progressBarDialog.setValue(len(self.mapDates))    
+    
+    self.slider.setMaximum(len(self.mapScenes) - 1)
+    self.slider.setValue(len(self.mapScenes))
+    
+    self.slider.show()
+    self.sliderButtonRight.show()
+    self.sliderButtonLeft.show()
+    self.innerSphereMap.show()
+    self.reportBox.show()
+    
+    self.adjustSize()
+    
+  def onSliderValueChanged(self, newValue):
+    self.innerSphereMap.setScene(self.mapScenes[newValue])
+    self.reportBox.clear()
+    self.message(self.mapReports[newValue])
+    
+  def onSliderButtonLeft(self):
+    self.slider.triggerAction(QAbstractSlider.SliderSingleStepSub)
+    
+  def onSliderButtonRight(self):
+    self.slider.triggerAction(QAbstractSlider.SliderSingleStepAdd)
+
+class UnitListWindow(QWidget):
+  def __init__(self, data, parent=None):
+    super(TimelineWindow, self).__init__(parent)
+    self.setWindowTitle("Unit Holdings")
+    self.data = data
+    self.setup()
+    
+  def setup(self):
+    pass
+    
+    
+def createMessageBox():
+  messageBox = QTextEdit()
+  messageBox.setReadOnly(True)
+
+  messageBox.setStyleSheet("font: 9pt \"Sans Serif\";")
+  messageBox.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Minimum)
+
+  return messageBox    
+  
 def main():
     app = QApplication(sys.argv)
     mon = MainWindow()
