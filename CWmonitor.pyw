@@ -1,6 +1,6 @@
-#URL = "https://static.mwomercs.com/data/cw/mapdata.json"
-URL = "file:///C:/HobbyWork/mapdata.json"
+URL = "https://static.mwomercs.com/data/cw/mapdata.json"
 TOTAL_TERRITORIES = 15.0
+VERSION = 0.30
 
 import sys
 
@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
     super(MainWindow, self).__init__()
     self.initUI()
     self.setCentralWidget(self.tablesWidget)
+    self.checkForUpdates()
       
   def initUI(self):               
     menubar = self.menuBar()
@@ -52,11 +53,12 @@ class MainWindow(QMainWindow):
     exitAction.setShortcut('Ctrl+Q')
     exitAction.triggered.connect(qApp.quit)
 
-    checkUpdateAction = QAction('&Check for updates', self)
-    checkUpdateAction.triggered.connect(self.checkForUpdates)
+    # Updates are automatically checked for now
+    #checkUpdateAction = QAction('&Check for updates', self)
+    #checkUpdateAction.triggered.connect(self.checkForUpdates)
     
     fileMenu.addAction(exitAction)
-    fileMenu.addAction(checkUpdateAction)
+    #fileMenu.addAction(checkUpdateAction)
     
     # Options
     optionsMenu = menubar.addMenu('&Options') 
@@ -91,7 +93,7 @@ class MainWindow(QMainWindow):
     
     unitListAction = QAction("&Unit Holdings", self)
     self.connect(unitListAction, SIGNAL("triggered()"), self.unitList)
-    toolsMenu.addAction(unitListAction)
+    #toolsMenu.addAction(unitListAction)
     
     # Help
     helpMenu = menubar.addMenu('&Help')
@@ -112,11 +114,12 @@ class MainWindow(QMainWindow):
     self.show()
       
   def about(self):
-    about = "Version %s\n" % (0.2) 
+    about = "Version %s\n" % (VERSION)
     box = QMessageBox()
     box.setTextFormat(Qt.RichText)
     box.setInformativeText(about)
-    box.setText("Made by Krivvan<br>More significant updates and additions to come!<br><br>\
+    box.setText("Made by Krivvan<br> <a href='mailto:krivvan@gmail.com?Subject=CW Monitor Feedback'>krivvan@gmail.com</a><br>\
+                 <a href='https://github.com/Krivvan/MWO-CW_Monitor/issues'>Bugs and upcoming features</a><br><br>\
                  Tips are absolutely not necessary, but if you insist:<br>\
                  Bitcoin Address: 1AEhKmoYjKdNeoV2RViPZ39zgWkq1vWRKi<br> \
                  <img src='assets/1AEhKmoYjKdNeoV2RViPZ39zgWkq1vWRKi.png' /> ")
@@ -131,18 +134,35 @@ class MainWindow(QMainWindow):
   def unitList(self):
     self.tablesWidget.openUnitList()
  
-  def checkForUpdates():
-    pass
+  def checkForUpdates(self):  
+    import re
+    import urllib
+    import urllib2
     
-    # import re
-    # regex=re.compile("Download MWOMonitor_(.*?)\.zip", re.DOTALL | re.MULTILINE)
-    # try:
-    # match = regex.search(html)
-    # if len(match.groups())>0:
-      # return match.group(1)
-    # except Exception, err:
-    # print "Couldn't match :(", err, err.message
-    # return None     
+    try:
+      filesPage = urllib2.urlopen("http://sourceforge.net/projects/mwocwmonitor/files/")
+    except Exception, err:
+      print "Failure to open page", err, err.message
+      return None
+    filesPageData = filesPage.read();
+    
+    regex = re.compile("Download CWMonitor-(.*)\.zip")
+    
+    try:
+      sourceforgeVersion = float(regex.search(filesPageData).group(1))
+      
+      if (sourceforgeVersion > VERSION):
+        box = QMessageBox()
+        box.setTextFormat(Qt.RichText)
+        box.setWindowTitle("Update")      
+        box.setText("New update available:<br> <a href='http://sourceforge.net/projects/mwocwmonitor/files/latest/download'>Download</a>")
+        box.exec_()
+      elif (sourceforgeVersion == VERSION):
+        print "Version currently up to date"
+      else:
+        print "Either something went wrong with version numbers or you have a neutral build"
+    except Exception, err:
+      print "Couldn't find version number", err, err.message
     
   def skinChanged(self, action):
     if action.objectName() == "DefaultSkin":
@@ -238,7 +258,7 @@ class CWmonitor(QWidget):
   def __init__(self):
     super(CWmonitor, self).__init__()
     self.updateMap = False
-    self.factionID = Factions.Davion_ID
+    self.factionID = Factions.IncludedFactions
     self.setup()
     self.message("Client will automatically update on 15 minute clock intervals (10:00, 10:15, 10:30, 10:45, etc.)")
     self.onScheduledUpdate()
@@ -252,6 +272,9 @@ class CWmonitor(QWidget):
     
     ## Tables and attacker wins
     self.factionSelectBox = QComboBox()
+    self.factionSelectBox.addItem("ALL FACTIONS"      , Factions.IncludedFactions  )
+    self.factionSelectBox.addItem("INNER SPHERE"      , Factions.IS_Factions       )
+    self.factionSelectBox.addItem("THE CLANS"         , Factions.Clan_Factions     )
     self.factionSelectBox.addItem("DAVION"            , Factions.Davion_ID         )
     self.factionSelectBox.addItem("LIAO"              , Factions.Liao_ID           )
     self.factionSelectBox.addItem("MARIK"             , Factions.Marik_ID          )
@@ -275,6 +298,7 @@ class CWmonitor(QWidget):
     self.defendTable.setFixedHeight(150)
     self.defendTable.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
     self.defendTable.setFocusPolicy(Qt.NoFocus)
+    self.defendTable.setSortingEnabled(True)
     self.defendTable.itemSelectionChanged.connect(self.onHighlightPlanets)
     
     self.attackTable = QTableWidget()
@@ -288,6 +312,7 @@ class CWmonitor(QWidget):
     self.attackTable.setFixedHeight(150)
     self.attackTable.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
     self.attackTable.setFocusPolicy(Qt.NoFocus)
+    self.attackTable.setSortingEnabled(True)
     self.attackTable.itemSelectionChanged.connect(self.onHighlightPlanets)
     
     layout = QVBoxLayout()
@@ -326,10 +351,10 @@ class CWmonitor(QWidget):
   
   def onChangeFaction(self):
     self.factionID = self.factionSelectBox.itemData(self.factionSelectBox.currentIndex())
-    if (self.factionID in Factions.IS_Factions):
-      self.window().setWindowTitle("Comstar Reports")
-    else:
+    if (self.factionID in Factions.Clan_Factions):
       self.window().setWindowTitle("Operation Revival Status")
+    else:
+      self.window().setWindowTitle("Comstar Reports")
     self.update()
       
   def message(self, txt):
@@ -357,15 +382,19 @@ class CWmonitor(QWidget):
   
   def update(self):
     # Update Tables
+    self.defendTable.setSortingEnabled(False)
     self.defendTable.setRowCount(0)
     for id in range (1,2241):
-      if (self.data[str(id)]["invading"]["id"] != "0") and (self.data[str(id)]["owner"]["id"] == self.factionID):
+      if ((self.data[str(id)]["invading"]["id"] != "0") and ((self.data[str(id)]["owner"]["id"] == self.factionID) or (self.data[str(id)]["owner"]["id"] in self.factionID))):
         self.addToDefendTable(self.data[str(id)], id)
-        
+    self.defendTable.setSortingEnabled(True)
+    
+    self.attackTable.setSortingEnabled(False)
     self.attackTable.setRowCount(0)
     for id in range (1,2241):
-      if (self.data[str(id)]["invading"]["id"] == self.factionID):
+      if ((self.data[str(id)]["invading"]["id"] == self.factionID) or (self.data[str(id)]["invading"]["id"] in self.factionID)):
         self.addToAttackTable(self.data[str(id)], id)
+    self.attackTable.setSortingEnabled(True)
     
     # Update Map
     if (self.updateMap):
@@ -391,7 +420,7 @@ class CWmonitor(QWidget):
     attackerWins = sum( [bin(int(item)).count("1") for item in planetInfo["territories"]] )
     attackerPercent = int(attackerWins / TOTAL_TERRITORIES * 100)
     attackerWinsString = str(attackerWins) + " (" + str(attackerPercent) + "%)"
-    contestedItem = QTableWidgetItem(attackerWinsString)
+    contestedItem = QTableWinsWidgetItem(attackerWinsString, attackerWins)
     contestedItem.setTextAlignment(Qt.AlignCenter)
     contestedItem.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
     self.defendTable.setItem(count, 2, contestedItem)
@@ -417,7 +446,7 @@ class CWmonitor(QWidget):
     
     attackerPercent = int(attackerWins / TOTAL_TERRITORIES * 100)
     attackerWinsString = str(attackerWins) + " (" + str(attackerPercent) + "%)"
-    contestedItem = QTableWidgetItem(attackerWinsString)
+    contestedItem = QTableWinsWidgetItem(attackerWinsString, attackerWins)
     contestedItem.setTextAlignment(Qt.AlignCenter)
     contestedItem.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
     self.attackTable.setItem(count, 2, contestedItem)
@@ -463,8 +492,17 @@ class CWmonitor(QWidget):
   def openUnitList(self):
     unitListWindow = UnitListWindow(self.data, self)
     unitListWindow.show()
-    
+ 
+class QTableWinsWidgetItem(QTableWidgetItem):
+  def __init__(self, text, sortKey):
+    QTableWidgetItem.__init__(self, text, QTableWidgetItem.UserType)
+    self.sortKey = sortKey
 
+  # So we can sort attacker wins properly
+  def __lt__(self, other):
+    #return int(self.sortKey.split(' ',1)[0]) < int(other.sortKey.split(' ',1)[0])
+    return self.sortKey < other.sortKey
+    
 class InnerSphereMap(QGraphicsScene):
   MapWidth = 811
   MapHeight = 604
@@ -569,20 +607,20 @@ class TimelineWindow(QWidget):
   def setup(self):
     self.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
   
-    dateTime = datetime.datetime.utcnow() # Game time is in UTC + 1035 directly to year
+    self.dateTime = datetime.datetime.utcnow() # Game time is in UTC + 1035 directly to year
 
     self.calendarFrom = QDateTimeEdit()
     self.calendarFrom.setCalendarPopup(True)
     self.calendarFrom.setDisplayFormat("MMMM dd, yyyy")
-    self.calendarFrom.setDateRange(QDate(2014, 12, 16), QDate(dateTime.year, dateTime.month, dateTime.day))    
+    self.calendarFrom.setDateRange(QDate(2014, 12, 16), QDate(self.dateTime.year, self.dateTime.month, self.dateTime.day))    
     self.calendarFrom.setDate(QDate(2014, 12, 16))
     self.calendarFrom.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
 
     self.calendarTo = QDateTimeEdit()
     self.calendarTo.setCalendarPopup(True)
     self.calendarTo.setDisplayFormat("MMMM dd, yyyy")
-    self.calendarTo.setDateRange(QDate(2014, 12, 16), QDate(dateTime.year, dateTime.month, dateTime.day))    
-    self.calendarTo.setDate(QDate(dateTime.year, dateTime.month, dateTime.day))
+    self.calendarTo.setDateRange(QDate(2014, 12, 16), QDate(self.dateTime.year, self.dateTime.month, self.dateTime.day))    
+    self.calendarTo.setDate(QDate(self.dateTime.year, self.dateTime.month, self.dateTime.day))
     self.calendarTo.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
 
     generateButton = QPushButton("Generate Maps and Reports")
@@ -681,6 +719,11 @@ class TimelineWindow(QWidget):
       month = str(date.month()).zfill(2)
       day = str(date.day()).zfill(2)
       
+      nextDayDate = date.addDays(1)
+      nextDayYear = str(nextDayDate.year() + 1035)
+      nextDayMonth = str(nextDayDate.month()).zfill(2)
+      nextDayDay = str(nextDayDate.day()).zfill(2)      
+      
       progressBarDialog.setValue(progress)
       if (progressBarDialog.wasCanceled()):
         break
@@ -689,8 +732,10 @@ class TimelineWindow(QWidget):
       progressBarDialog.setLabelText("Accessing data archives for ("+year+"-"+month+"-"+day+")...")
       qApp.processEvents()
       
-      dataURL = "https://static.mwomercs.com/data/cw/mapdata-" + year + "-" + month + "-" + day + "T05-00" + ".json"
-      #dataURL = "file:///C:/HobbyWork/mapdata-" + year + "-" + month + "-" + day + "T05-00" + ".json"
+      if (date == QDate(self.dateTime.year, self.dateTime.month, self.dateTime.day)):
+        dataURL = "https://static.mwomercs.com/data/cw/mapdata-" + year + "-" + month + "-" + day + "T05-00" + ".json"
+      else:
+        dataURL = "https://static.mwomercs.com/data/cw/mapdata-" + nextDayYear + "-" + nextDayMonth + "-" + nextDayDay + "T04-45" + ".json"
       # TODO: catch exception when urlopen fails
       jsonurl = urllib.urlopen(dataURL)
       data = json.loads(jsonurl.read())
@@ -708,8 +753,10 @@ class TimelineWindow(QWidget):
       qApp.processEvents()      
 
       report = "No report available"
-      defenseReport = "\n\nSuccessful defence actions:"
-      attackReport = "Successful attacks:"
+      #defenseReport = "\n \n\nSuccessful defence actions:\n"
+      defenseReportList = []
+      #attackReport = "Successful attacks:\n"
+      attackReportList = []
       
       if (oldData != None):
         for id in range (1,2241):
@@ -718,15 +765,19 @@ class TimelineWindow(QWidget):
               planetName = oldData[str(id)]["name"]
               defender = oldData[str(id)]["owner"]["name"]
               attacker = oldData[str(id)]["invading"]["name"]
-              defenseReportLine = "\n" + defender + " defended " + planetName + " from " + attacker
-              defenseReport = defenseReport + defenseReportLine
+              attackerWins = sum( [bin(int(item)).count("1") for item in oldData[str(id)]["territories"]] )
+              if (attackerWins > 0):
+                defenseReportLine = defender + " holds " + attacker + " to " + str(attackerWins) + " on " + planetName + ".\n"
+                defenseReportList.append(defenseReportLine)
             elif (oldData[str(id)]["owner"]["id"] != data[str(id)]["owner"]["id"]):
               planetName = oldData[str(id)]["name"]
               defender = oldData[str(id)]["owner"]["name"]
               attacker = oldData[str(id)]["invading"]["name"]
-              attackReportLine = "\n" + attacker + " has taken " + planetName + " from " + defender
-              attackReport = attackReport + attackReportLine         
-        report = attackReport + defenseReport
+              attackReportLine = attacker + " takes " + planetName + " from " + defender + "!\n"
+              attackReportList.append(attackReportLine)
+        attackReport = ''.join(sorted(attackReportList, key=lambda x:x[:2]))
+        defenseReport = ''.join(sorted(defenseReportList, key=lambda x:x[:2]))
+        report = attackReport + "\n" + defenseReport
       
       self.mapReports.append(report)
       
@@ -745,6 +796,7 @@ class TimelineWindow(QWidget):
     self.reportBox.show()
     
     self.adjustSize()
+    self.showMaximized()
     
   def onSliderValueChanged(self, newValue):
     self.innerSphereMap.setScene(self.mapScenes[newValue])
@@ -772,13 +824,14 @@ def createMessageBox():
   messageBox = QTextEdit()
   messageBox.setReadOnly(True)
 
-  messageBox.setStyleSheet("font: 9pt \"Sans Serif\";")
+  messageBox.setStyleSheet("font: 9pt \"Courier\";")
   messageBox.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Minimum)
 
   return messageBox    
   
 def main():
     app = QApplication(sys.argv)
+    app.setWindowIcon(QIcon("assets/CWmonitorico.png"))
     mon = MainWindow()
     sys.exit(app.exec_())
 
