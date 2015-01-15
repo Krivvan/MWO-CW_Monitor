@@ -106,7 +106,7 @@ class MainWindow(QMainWindow):
     self.resize(840, 300)
     self.setFixedWidth(840)
     self.setMinimumHeight(350)
-    self.setMaximumHeight(350)
+    #self.setMaximumHeight(350)
     self.setSizePolicy(QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding))
     
     self.setWindowTitle('Comstar Reports')
@@ -295,8 +295,7 @@ class CWmonitor(QWidget):
     self.defendTable.horizontalHeader().setStretchLastSection(True)
     self.defendTable.setSelectionBehavior(QAbstractItemView.SelectRows)
     self.defendTable.setMaximumWidth(415) # TODO: lay it out better and resort less on fixed sizes, just wanted it working for now
-    self.defendTable.setFixedHeight(150)
-    self.defendTable.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
+    self.defendTable.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding))
     self.defendTable.setFocusPolicy(Qt.NoFocus)
     self.defendTable.setSortingEnabled(True)
     self.defendTable.itemSelectionChanged.connect(self.onHighlightPlanets)
@@ -309,8 +308,7 @@ class CWmonitor(QWidget):
     self.attackTable.horizontalHeader().setStretchLastSection(True)    
     self.attackTable.setSelectionBehavior(QAbstractItemView.SelectRows)
     self.attackTable.setMaximumWidth(415)
-    self.attackTable.setFixedHeight(150)
-    self.attackTable.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
+    self.attackTable.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding))
     self.attackTable.setFocusPolicy(Qt.NoFocus)
     self.attackTable.setSortingEnabled(True)
     self.attackTable.itemSelectionChanged.connect(self.onHighlightPlanets)
@@ -319,36 +317,43 @@ class CWmonitor(QWidget):
     self.setLayout(layout)
     layout.addWidget(self.factionSelectBox)
     
-    hlayout = QHBoxLayout()
-    hlayout.addWidget(self.defendTable)
-    hlayout.addWidget(self.attackTable)
-    layout.addLayout(hlayout)
+    topTablesLayout = QVBoxLayout()
+    
+    tablesLayout = QHBoxLayout()
+    tablesLayout.addWidget(self.defendTable)
+    tablesLayout.addWidget(self.attackTable)
+    topTablesLayout.addLayout(tablesLayout)
     
     self.messageBox = createMessageBox()
     self.messageBox.setFixedHeight(50)
-    layout.addWidget(self.messageBox)
+    
+    topTablesLayout.addWidget(self.messageBox)
     
     updateButton = QPushButton("MANUAL UPDATE")
     updateButton.clicked.connect(self.onUpdateButton)    
-    
-    layout.addWidget(updateButton)
+    topTablesLayout.addWidget(updateButton)
     
     ## Inner sphere map
     self.showMapButton = QPushButton(self.downArrowIcon + " SHOW INNER SPHERE MAP " + self.downArrowIcon)
     self.showMapButton.clicked.connect(self.onShowMapButtonClicked)
-    layout.addWidget(self.showMapButton)
+    topTablesLayout.addWidget(self.showMapButton)
     
-    self.innerSphereMap = QGraphicsView()    
-    self.innerSphereMapScene = InnerSphereMap()
-    self.innerSphereMap.setDragMode(QGraphicsView.ScrollHandDrag)
-    self.innerSphereMap.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-    self.innerSphereMap.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)      
+    tablesWidget = QWidget()
+    tablesWidget.setLayout(topTablesLayout)
+    
+    self.innerSphereMap = InnerSphereMapView()    
+    self.innerSphereMapScene = InnerSphereMap()  
     self.innerSphereMap.setScene(self.innerSphereMapScene)
-    layout.addWidget(self.innerSphereMap)
     self.innerSphereMap.hide()
+   
+    splitter = QSplitter()
+    splitter.setOrientation(Qt.Vertical)
+    splitter.setHandleWidth(2)
+    splitter.addWidget(tablesWidget)
+    splitter.addWidget(self.innerSphereMap)
     
-    layout.addStretch(1)
-  
+    layout.addWidget(splitter)
+    
   def onChangeFaction(self):
     self.factionID = self.factionSelectBox.itemData(self.factionSelectBox.currentIndex())
     if (self.factionID in Factions.Clan_Factions):
@@ -459,18 +464,11 @@ class CWmonitor(QWidget):
     if self.updateMap:
       self.innerSphereMap.hide()
       self.updateMap = False
-      self.window().setFixedHeight(350)
-      self.adjustSize()
-      self.window().adjustSize()
       self.showMapButton.setText(self.downArrowIcon + " SHOW INNER SPHERE MAP " + self.downArrowIcon)
     else:
       self.innerSphereMap.show()
-      self.showMapButton.setText(self.upArrowIcon +   " HIDE INNER SPHERE MAP " + self.upArrowIcon)
+      self.showMapButton.setText(self.upArrowIcon   + " HIDE INNER SPHERE MAP " + self.upArrowIcon)
       self.updateMap = True
-      
-      self.window().setMinimumHeight(430) #sort of a temporary workaround due to a few issues with inner sphere map sizing and layouts
-      self.window().setMaximumHeight(970)
-      self.window().resize(self.width(), 970)
       self.update()
   
   def onHighlightPlanets(self):
@@ -478,16 +476,16 @@ class CWmonitor(QWidget):
       for row in range(0,self.defendTable.rowCount()):
         planet = (self.innerSphereMapScene.planetDict[int(self.defendTable.item(row, 0).data(Qt.UserRole))])
         if self.defendTable.item(row,0).isSelected():
-          planet.setOutline(True)
+          planet.setSelected(True)
         else:
-          planet.setOutline(False)
+          planet.setSelected(False)
           
       for row in range(0,self.attackTable.rowCount()):
         planet = (self.innerSphereMapScene.planetDict[int(self.attackTable.item(row, 0).data(Qt.UserRole))])
         if self.attackTable.item(row,0).isSelected():
-          planet.setOutline(True)
+          planet.setSelected(True)
         else:
-          planet.setOutline(False)
+          planet.setSelected(False)
           
   def openUnitList(self):
     unitListWindow = UnitListWindow(self.data, self)
@@ -502,6 +500,27 @@ class QTableWinsWidgetItem(QTableWidgetItem):
   def __lt__(self, other):
     #return int(self.sortKey.split(' ',1)[0]) < int(other.sortKey.split(' ',1)[0])
     return self.sortKey < other.sortKey
+
+class InnerSphereMapView(QGraphicsView):
+  def __init__(self, parent=None):
+    super(InnerSphereMapView, self).__init__(parent)
+    self.setDragMode(QGraphicsView.ScrollHandDrag)
+    self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    self.setMouseTracking(True)
+    self.minScale = 1.15
+    self.maxScale = 5.00
+    self.currentScale = 1.00
+
+  def wheelEvent(self, event):
+    self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
+    scaleFactor = 1.15
+    if ((self.currentScale < self.maxScale) & (event.delta() > 0)):
+      self.scale(scaleFactor, scaleFactor)
+      self.currentScale = self.currentScale * scaleFactor
+    elif ((self.currentScale > self.minScale) & (event.delta() < 0)):
+      self.scale(1.0 / scaleFactor, 1.0 / scaleFactor)
+      self.currentScale = self.currentScale / scaleFactor
     
 class InnerSphereMap(QGraphicsScene):
   MapWidth = 811
@@ -554,6 +573,9 @@ class Planet(QGraphicsEllipseItem):
     self.highlightPen = (QPen(QColor(255,255,10,80)))
     self.highlightPen.setWidth(6)
     self.setPen(self.blankPen)
+    self.setFlags(QGraphicsItem.ItemIsSelectable)
+    #self.setMouseTracking(True)
+    self.setAcceptHoverEvents(True)
   
   def setFaction(self, newFaction):
     self.faction = newFaction
@@ -584,7 +606,6 @@ class Planet(QGraphicsEllipseItem):
       color = QColor(255,255,255)
     brush = QBrush(color)
     self.setBrush(brush)
-    
     self.update()
     
   def setOutline(self, selected):
@@ -594,6 +615,17 @@ class Planet(QGraphicsEllipseItem):
     else:
       self.setPen(self.blankPen)
       self.update()
+  
+  def itemChange(self, change, value):
+    if (change == QGraphicsItem.ItemSelectedChange):
+      if (value == True):
+        self.setOutline(True)
+      else:
+        self.setOutline(False)
+    return QGraphicsItem.itemChange(self, change, value)
+  
+  def hoverEnterEvent(self, event):
+    self.setCursor(Qt.PointingHandCursor);
 
 class TimelineWindow(QWidget):
   def __init__(self, parent=None):
@@ -657,10 +689,7 @@ class TimelineWindow(QWidget):
     sliderLayout.addWidget(self.sliderButtonLeft)
     sliderLayout.addWidget(self.sliderButtonRight)
     
-    self.innerSphereMap = QGraphicsView()
-    self.innerSphereMap.setDragMode(QGraphicsView.ScrollHandDrag)
-    self.innerSphereMap.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-    self.innerSphereMap.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    self.innerSphereMap = InnerSphereMapView()
     self.innerSphereMap.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
     placeholderScene = QGraphicsScene(self)
     placeholderScene.setBackgroundBrush(Qt.black)
