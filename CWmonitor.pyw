@@ -10,7 +10,7 @@ from PySide.QtGui import *
 
 # JSON
 import json
-import urllib
+import urllib2
 
 # System/OS
 import sys
@@ -19,7 +19,7 @@ import os
 # in order to update at 15 minute marks
 import sched, time, datetime
 
-# No enums in 2.7 :(
+# No enums in 2.7 :(  
 class Factions():
   Comstar_ID         =  "1"
   Davion_ID          =  "5"
@@ -136,7 +136,6 @@ class MainWindow(QMainWindow):
  
   def checkForUpdates(self):  
     import re
-    import urllib
     import urllib2
     
     try:
@@ -259,6 +258,7 @@ class CWmonitor(QWidget):
     super(CWmonitor, self).__init__()
     self.updateMap = False
     self.factionID = Factions.IncludedFactions
+    self.planetWindows = []
     self.setup()
     self.message("Client will automatically update on 15 minute clock intervals (10:00, 10:15, 10:30, 10:45, etc.)")
     self.onScheduledUpdate()
@@ -299,6 +299,7 @@ class CWmonitor(QWidget):
     self.defendTable.setFocusPolicy(Qt.NoFocus)
     self.defendTable.setSortingEnabled(True)
     self.defendTable.itemSelectionChanged.connect(self.onHighlightPlanets)
+    self.defendTable.itemDoubleClicked.connect(self.onRowDoubleClicked)
     
     self.attackTable = QTableWidget()
     self.attackTable.setColumnCount(4)
@@ -312,6 +313,7 @@ class CWmonitor(QWidget):
     self.attackTable.setFocusPolicy(Qt.NoFocus)
     self.attackTable.setSortingEnabled(True)
     self.attackTable.itemSelectionChanged.connect(self.onHighlightPlanets)
+    self.attackTable.itemDoubleClicked.connect(self.onRowDoubleClicked)
     
     layout = QVBoxLayout()
     self.setLayout(layout)
@@ -369,10 +371,11 @@ class CWmonitor(QWidget):
     self.messageBox.ensureCursorVisible()
   
   def loadJSON(self):
-    jsonurl = urllib.urlopen(URL)
+    jsonurl = urllib2.urlopen(URL)
     self.data = json.loads(jsonurl.read())
-    t = datetime.datetime.time(datetime.datetime.now())
-    timeTillFifteeen = 15 - (t.minute % 15) # number of minutes until the next 15 minute period 
+    t = datetime.datetime.time(datetime.datetime.utcnow())
+    
+    timeTillFifteeen = 15 - (t.minute % 15) # number of minutes until the next 15 minute period
     self.timer.start((timeTillFifteeen * 60 * 1000) + 30000) # plus 30 seconds, to make up for potential time differences
     
   def onScheduledUpdate(self):
@@ -405,9 +408,16 @@ class CWmonitor(QWidget):
     if (self.updateMap):
       if len(self.innerSphereMapScene.planetDict) < 2240:
         self.innerSphereMapScene.populateWithPlanets(self.data)
-        self.innerSphereMapScene.addDate( "Current: " + ((self.data["generated"])[:-9]) )
+        self.innerSphereMapScene.addDate( "Current: " + ((self.data["generated"])[:-3]) )
       else:
         self.innerSphereMapScene.updatePlanetFactions(self.data)
+        
+    # Update Planet Detail Windows
+    for planetWindow in self.planetWindows:
+      if (planetWindow is None):
+        self.planetWindows.remove(planetWindow)
+      else:
+        planetWindow.update(self.data[planetWindow.id], (self.data["generated"])[:-3])
     
   def addToDefendTable(self, planetInfo, id):
     count = self.defendTable.rowCount()
@@ -444,6 +454,7 @@ class CWmonitor(QWidget):
     self.attackTable.setItem(count, 0, nameItem)
     
     invaderItem = QTableWidgetItem(planetInfo["invading"]["name"])
+    invaderItem.setData(Qt.UserRole, id)
     invaderItem.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
     self.attackTable.setItem(count, 1, invaderItem)
     
@@ -453,22 +464,39 @@ class CWmonitor(QWidget):
     attackerWinsString = str(attackerWins) + " (" + str(attackerPercent) + "%)"
     contestedItem = QTableWinsWidgetItem(attackerWinsString, attackerWins)
     contestedItem.setTextAlignment(Qt.AlignCenter)
+    contestedItem.setData(Qt.UserRole, id)
     contestedItem.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
     self.attackTable.setItem(count, 2, contestedItem)
     
     ownerItem = QTableWidgetItem(planetInfo["owner"]["name"])
+    ownerItem.setData(Qt.UserRole, id)
     ownerItem.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
     self.attackTable.setItem(count, 3, ownerItem)
+    
+  def onRowDoubleClicked(self, tableItem):
+    planetID = tableItem.data(Qt.UserRole)
+    self.createNewPlanetWindow(planetID)
+    
+  def createNewPlanetWindow(self, planetID):
+    newPlanetWindow = PlanetDetailWindow(planetID, self)
+    self.planetWindows.append(newPlanetWindow)
+    newPlanetWindow.setWindowFlags(Qt.Window)
+    newPlanetWindow.initializeGraphValues(self.data[newPlanetWindow.id], (self.data["generated"])[:-3])
+    newPlanetWindow.show()
+    self.update()
+    
     
   def onShowMapButtonClicked(self):
     if self.updateMap:
       self.innerSphereMap.hide()
       self.updateMap = False
       self.showMapButton.setText(self.downArrowIcon + " SHOW INNER SPHERE MAP " + self.downArrowIcon)
+      self.window().resize(self.width(), 350)
     else:
       self.innerSphereMap.show()
       self.showMapButton.setText(self.upArrowIcon   + " HIDE INNER SPHERE MAP " + self.upArrowIcon)
       self.updateMap = True
+      self.window().resize(self.width(), 970)
       self.update()
   
   def onHighlightPlanets(self):
@@ -498,7 +526,6 @@ class QTableWinsWidgetItem(QTableWidgetItem):
 
   # So we can sort attacker wins properly
   def __lt__(self, other):
-    #return int(self.sortKey.split(' ',1)[0]) < int(other.sortKey.split(' ',1)[0])
     return self.sortKey < other.sortKey
 
 class InnerSphereMapView(QGraphicsView):
@@ -574,7 +601,6 @@ class Planet(QGraphicsEllipseItem):
     self.highlightPen.setWidth(6)
     self.setPen(self.blankPen)
     self.setFlags(QGraphicsItem.ItemIsSelectable)
-    #self.setMouseTracking(True)
     self.setAcceptHoverEvents(True)
   
   def setFaction(self, newFaction):
@@ -644,8 +670,8 @@ class TimelineWindow(QWidget):
     self.calendarFrom = QDateTimeEdit()
     self.calendarFrom.setCalendarPopup(True)
     self.calendarFrom.setDisplayFormat("MMMM dd, yyyy")
-    self.calendarFrom.setDateRange(QDate(2014, 12, 16), QDate(self.dateTime.year, self.dateTime.month, self.dateTime.day))    
-    self.calendarFrom.setDate(QDate(2014, 12, 16))
+    self.calendarFrom.setDateRange(QDate(2014, 12, 17), QDate(self.dateTime.year, self.dateTime.month, self.dateTime.day))    
+    self.calendarFrom.setDate(QDate(2014, 12, 17))
     self.calendarFrom.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
 
     self.calendarTo = QDateTimeEdit()
@@ -748,72 +774,170 @@ class TimelineWindow(QWidget):
       month = str(date.month()).zfill(2)
       day = str(date.day()).zfill(2)
       
-      nextDayDate = date.addDays(1)
-      nextDayYear = str(nextDayDate.year() + 1035)
-      nextDayMonth = str(nextDayDate.month()).zfill(2)
-      nextDayDay = str(nextDayDate.day()).zfill(2)      
+      #nextDayDate = date.addDays(1)
+      #nextDayYear = str(nextDayDate.year() + 1035)
+      #nextDayMonth = str(nextDayDate.month()).zfill(2)
+      #nextDayDay = str(nextDayDate.day()).zfill(2)      
       
       progressBarDialog.setValue(progress)
       if (progressBarDialog.wasCanceled()):
         break
-      qApp.processEvents()      
+      qApp.processEvents()
       
       progressBarDialog.setLabelText("Accessing data archives for ("+year+"-"+month+"-"+day+")...")
       qApp.processEvents()
       
-      if (date == QDate(self.dateTime.year, self.dateTime.month, self.dateTime.day)):
+      # Ceasefire 1
+      if (date < QDate(2015, 1, 21)):
         dataURL = "https://static.mwomercs.com/data/cw/mapdata-" + year + "-" + month + "-" + day + "T05-00" + ".json"
       else:
-        dataURL = "https://static.mwomercs.com/data/cw/mapdata-" + nextDayYear + "-" + nextDayMonth + "-" + nextDayDay + "T04-45" + ".json"
-      # TODO: catch exception when urlopen fails
-      jsonurl = urllib.urlopen(dataURL)
-      data = json.loads(jsonurl.read())
-      
-      progressBarDialog.setLabelText("Generating map for ("+year+"-"+month+"-"+day+")...")
-      qApp.processEvents()
-      
-      newMapScene = InnerSphereMap(self)
-      newMapScene.populateWithPlanets(data)
-      newMapScene.addDate((data["generated"])[:-9])
-      
-      self.mapScenes.append(newMapScene)
-      
-      progressBarDialog.setLabelText("Writing reports for ("+year+"-"+month+"-"+day+")...")
-      qApp.processEvents()      
+        dataURL = "https://static.mwomercs.com/data/cw/mapdata-" + year + "-" + month + "-" + day + "T06-00" + ".json"
+      try: 
+        jsonurl = urllib2.urlopen(dataURL)
+        data = json.loads(jsonurl.read())
+        
+        progressBarDialog.setLabelText("Generating map for (06:00UTC  "+year+"-"+month+"-"+day+")...")
+        qApp.processEvents()
+        
+        newMapScene = InnerSphereMap(self)
+        newMapScene.populateWithPlanets(data)
+        newMapScene.addDate((data["generated"][:-3]))
+        
+        self.mapScenes.append(newMapScene)
+        
+        progressBarDialog.setLabelText("Writing reports for (06:00UTC  "+year+"-"+month+"-"+day+")...")
+        qApp.processEvents()      
 
-      report = "No report available"
-      #defenseReport = "\n \n\nSuccessful defence actions:\n"
-      defenseReportList = []
-      #attackReport = "Successful attacks:\n"
-      attackReportList = []
+        report = "No report available"
+        defenseReportList = []
+        attackReportList = []
+        
+        if (oldData != None):
+          for id in range (1,2241):
+            if (oldData[str(id)]["contested"] == "1"):
+              if (oldData[str(id)]["owner"]["id"] == data[str(id)]["owner"]["id"]):
+                planetName = oldData[str(id)]["name"]
+                defender = oldData[str(id)]["owner"]["name"]
+                attacker = oldData[str(id)]["invading"]["name"]
+                attackerWins = sum( [bin(int(item)).count("1") for item in oldData[str(id)]["territories"]] )
+                if (attackerWins > 0):
+                  defenseReportLine = defender + " holds " + attacker + " to " + str(attackerWins) + " on " + planetName + ".\n"
+                  defenseReportList.append(defenseReportLine)
+              elif (oldData[str(id)]["owner"]["id"] != data[str(id)]["owner"]["id"]):
+                planetName = oldData[str(id)]["name"]
+                defender = oldData[str(id)]["owner"]["name"]
+                attacker = oldData[str(id)]["invading"]["name"]
+                attackReportLine = attacker + " takes " + planetName + " from " + defender + "!\n"
+                attackReportList.append(attackReportLine)
+          attackReport = ''.join(sorted(attackReportList, key=lambda x:x[:2]))
+          defenseReport = ''.join(sorted(defenseReportList, key=lambda x:x[:2]))
+          report = attackReport + "\n" + defenseReport
+        
+        self.mapReports.append(report)
+        oldData = data
+      except urllib2.URLError as e:
+        print e.reason
+        
+        
+      # Ceasefire 2
+      dataURL = "https://static.mwomercs.com/data/cw/mapdata-" + year + "-" + month + "-" + day + "T14-00" + ".json"
+      try:
+        jsonurl = urllib2.urlopen(dataURL)
+        data = json.loads(jsonurl.read())
+        
+        progressBarDialog.setLabelText("Generating map for (14:00UTC  "+year+"-"+month+"-"+day+")...")
+        qApp.processEvents()
+        
+        newMapScene = InnerSphereMap(self)
+        newMapScene.populateWithPlanets(data)
+        newMapScene.addDate((data["generated"][:-3]))
+        
+        self.mapScenes.append(newMapScene)
+        
+        progressBarDialog.setLabelText("Writing reports for (14:00UTC  "+year+"-"+month+"-"+day+")...")
+        qApp.processEvents()      
+
+        report = "No report available"
+        defenseReportList = []
+        attackReportList = []
+        
+        if (oldData != None):
+          for id in range (1,2241):
+            if (oldData[str(id)]["contested"] == "1"):
+              if (oldData[str(id)]["owner"]["id"] == data[str(id)]["owner"]["id"]):
+                planetName = oldData[str(id)]["name"]
+                defender = oldData[str(id)]["owner"]["name"]
+                attacker = oldData[str(id)]["invading"]["name"]
+                attackerWins = sum( [bin(int(item)).count("1") for item in oldData[str(id)]["territories"]] )
+                if (attackerWins > 0):
+                  defenseReportLine = defender + " holds " + attacker + " to " + str(attackerWins) + " on " + planetName + ".\n"
+                  defenseReportList.append(defenseReportLine)
+              elif (oldData[str(id)]["owner"]["id"] != data[str(id)]["owner"]["id"]):
+                planetName = oldData[str(id)]["name"]
+                defender = oldData[str(id)]["owner"]["name"]
+                attacker = oldData[str(id)]["invading"]["name"]
+                attackReportLine = attacker + " takes " + planetName + " from " + defender + "!\n"
+                attackReportList.append(attackReportLine)
+          attackReport = ''.join(sorted(attackReportList, key=lambda x:x[:2]))
+          defenseReport = ''.join(sorted(defenseReportList, key=lambda x:x[:2]))
+          report = attackReport + "\n" + defenseReport
+        
+        self.mapReports.append(report)
+        oldData = data
+      except urllib2.URLError as e:
+        print e.reason
       
-      if (oldData != None):
-        for id in range (1,2241):
-          if (oldData[str(id)]["contested"] == "1"):
-            if (oldData[str(id)]["owner"]["id"] == data[str(id)]["owner"]["id"]):
-              planetName = oldData[str(id)]["name"]
-              defender = oldData[str(id)]["owner"]["name"]
-              attacker = oldData[str(id)]["invading"]["name"]
-              attackerWins = sum( [bin(int(item)).count("1") for item in oldData[str(id)]["territories"]] )
-              if (attackerWins > 0):
-                defenseReportLine = defender + " holds " + attacker + " to " + str(attackerWins) + " on " + planetName + ".\n"
-                defenseReportList.append(defenseReportLine)
-            elif (oldData[str(id)]["owner"]["id"] != data[str(id)]["owner"]["id"]):
-              planetName = oldData[str(id)]["name"]
-              defender = oldData[str(id)]["owner"]["name"]
-              attacker = oldData[str(id)]["invading"]["name"]
-              attackReportLine = attacker + " takes " + planetName + " from " + defender + "!\n"
-              attackReportList.append(attackReportLine)
-        attackReport = ''.join(sorted(attackReportList, key=lambda x:x[:2]))
-        defenseReport = ''.join(sorted(defenseReportList, key=lambda x:x[:2]))
-        report = attackReport + "\n" + defenseReport
+      # Ceasefire 3
+      dataURL = "https://static.mwomercs.com/data/cw/mapdata-" + year + "-" + month + "-" + day + "T22-00" + ".json"
+      try:
+        jsonurl = urllib2.urlopen(dataURL)
+        data = json.loads(jsonurl.read())
+        
+        progressBarDialog.setLabelText("Generating map for (22:00UTC  "+year+"-"+month+"-"+day+")...")
+        qApp.processEvents()
+        
+        newMapScene = InnerSphereMap(self)
+        newMapScene.populateWithPlanets(data)
+        newMapScene.addDate((data["generated"][:-3]))
+        
+        self.mapScenes.append(newMapScene)
+        
+        progressBarDialog.setLabelText("Writing reports for (22:00UTC  "+year+"-"+month+"-"+day+")...")
+        qApp.processEvents()      
+
+        report = "No report available"
+        defenseReportList = []
+        attackReportList = []
+        
+        if (oldData != None):
+          for id in range (1,2241):
+            if (oldData[str(id)]["contested"] == "1"):
+              if (oldData[str(id)]["owner"]["id"] == data[str(id)]["owner"]["id"]):
+                planetName = oldData[str(id)]["name"]
+                defender = oldData[str(id)]["owner"]["name"]
+                attacker = oldData[str(id)]["invading"]["name"]
+                attackerWins = sum( [bin(int(item)).count("1") for item in oldData[str(id)]["territories"]] )
+                if (attackerWins > 0):
+                  defenseReportLine = defender + " holds " + attacker + " to " + str(attackerWins) + " on " + planetName + ".\n"
+                  defenseReportList.append(defenseReportLine)
+              elif (oldData[str(id)]["owner"]["id"] != data[str(id)]["owner"]["id"]):
+                planetName = oldData[str(id)]["name"]
+                defender = oldData[str(id)]["owner"]["name"]
+                attacker = oldData[str(id)]["invading"]["name"]
+                attackReportLine = attacker + " takes " + planetName + " from " + defender + "!\n"
+                attackReportList.append(attackReportLine)
+          attackReport = ''.join(sorted(attackReportList, key=lambda x:x[:2]))
+          defenseReport = ''.join(sorted(defenseReportList, key=lambda x:x[:2]))
+          report = attackReport + "\n" + defenseReport
+        
+        self.mapReports.append(report)      
+        progress += 1
+        oldData = data
+      except urllib2.URLError as e:
+        print e.reason
       
-      self.mapReports.append(report)
       
-      progress += 1
-      oldData = data
-      
-    progressBarDialog.setValue(len(self.mapDates))    
+    progressBarDialog.setValue(len(self.mapDates))
     
     self.slider.setMaximum(len(self.mapScenes) - 1)
     self.slider.setValue(len(self.mapScenes))
@@ -848,7 +972,167 @@ class UnitListWindow(QWidget):
   def setup(self):
     pass
     
+
+class PlanetDetailWindow(QWidget):
+  def __init__(self, id, parent=None):
+    super(PlanetDetailWindow, self).__init__(parent)
+
+    self.id = str(id)
+    self.setup()
     
+  def setup(self):
+    self.setSizePolicy(QSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum))
+    
+    import Tkinter
+    import FileDialog
+    from matplotlib import pyplot
+    from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+    
+    # Plot controls
+    populate24HoursButton = QPushButton("Populate plot with data from the last 24 hours")
+    populate24HoursButton.clicked.connect(self.onPopulate24Hours)   
+    
+    # Wins plot
+    wins = [0]*96
+    bins = [0]*96
+    self.figure = pyplot.figure()
+    self.canvas = FigureCanvas(self.figure)
+    
+    # Save to CSV
+    #saveToCSVButton = QPushButton("Save to CSV")
+    #saveToCSVButton.clicked.connect(self.onSaveToCSV)       
+    
+    layout = QVBoxLayout()
+    layout.addWidget(populate24HoursButton)
+    layout.addWidget(self.canvas)
+    #layout.addWidget(saveToCSVButton)
+    self.setLayout(layout)
+  
+  def initializeGraphValues(self, planetData, dateString):
+    attackerWins = sum( [bin(int(item)).count("1") for item in planetData["territories"]] )
+    attackerPercent = int(attackerWins / TOTAL_TERRITORIES * 100)
+    attackerWinsString = str(attackerWins) + " (" + str(attackerPercent) + "%)"    
+    invader = planetData["invading"]["name"]
+    defender = planetData["owner"]["name"]
+    self.setWindowTitle(planetData["name"] + " - " + invader + " invading " + defender + " - " + attackerWinsString)
+  
+    # Figure out the last update time
+    self.lastUpdateDate = datetime.datetime.utcnow()
+    updateHour = int(dateString[-5:-3])
+    updateMinutes = int(dateString[-2:])
+    self.lastUpdateDate = self.lastUpdateDate.replace(hour = updateHour, minute = updateMinutes, second = 0, microsecond = 0)
+    
+    # Start the list used for the plot with the current update
+    attackerWins = sum( [bin(int(item)).count("1") for item in planetData["territories"]] )
+    insertDate = self.lastUpdateDate
+    self.dateWinValues = [(insertDate,attackerWins)]
+    
+    self.updatePlot()
+    
+  def update(self, planetData, dateString):
+    # Figure out the last update time
+    newestUpdateDate = datetime.datetime.utcnow()
+    updateHour = int(dateString[-5:-3])
+    updateMinutes = int(dateString[-2:])
+    newestUpdateDate = newestUpdateDate.replace(hour = updateHour, minute = updateMinutes, second = 0, microsecond = 0)
+    
+    if (self.lastUpdateDate < newestUpdateDate):
+      attackerWins = sum( [bin(int(item)).count("1") for item in planetData["territories"]] )
+      attackerPercent = int(attackerWins / TOTAL_TERRITORIES * 100)
+      attackerWinsString = str(attackerWins) + " (" + str(attackerPercent) + "%)"    
+      invader = planetData["invading"]["name"]
+      defender = planetData["owner"]["name"]
+      self.setWindowTitle(planetData["name"] + " - " + invader + " invading " + defender + " - " + attackerWinsString)
+      
+      self.insertNewWinsValueOnDate(newestUpdateDate, attackerWins)
+      self.updatePlot()
+      
+      self.lastUpdateDate = newestUpdateDate
+    
+  def insertNewWinsValueOnDate(self, date, attackerWins):
+    newDateWinsTuple = (date, attackerWins)
+    import bisect
+    self.dateWinValues.insert(len(self.dateWinValues) - bisect.bisect_right(self.dateWinValues, newDateWinsTuple), newDateWinsTuple)
+    
+    if (len(self.dateWinValues) > 96):
+      self.dateWinValues.pop()
+      return False
+    return True
+    
+  def updatePlot(self):
+    import numpy
+  
+    datesTuple, winsTuple = zip(*self.dateWinValues)
+    dates = []
+    for date in datesTuple:
+      dates.append(str(date.time())[:-3])
+    dates = dates + ["N/A"]*(96 - len(dates))
+    datesTuple = (tuple(dates))[::-1]
+    
+    wins = list(winsTuple)
+    wins = wins + [0]*(96 - len(wins))
+    wins.reverse()
+
+    indices = numpy.arange(96)
+  
+    ax = self.figure.add_subplot(111)
+    ax.hold(False)
+    ax.bar(indices, wins, 1, color='blue',)
+    ax.set_xlabel("Time")
+    ax.set_xticks(indices+1)
+    ax.set_xticklabels(datesTuple, rotation = 'vertical', fontsize = 'small')
+    ax.set_ylabel("Attacker Wins")
+    ax.set_ylim(0,15)
+    ax.set_autoscale_on(False)
+    
+    self.canvas.draw()
+    
+  def onPopulate24Hours(self):
+    import urllib
+    import json
+
+    date = self.lastUpdateDate
+    notFilled = True
+    
+    progressBarDialog = QProgressDialog("Starting archive lookup...", "Cancel", 0, 96)
+    progressBarDialog.setWindowModality(Qt.WindowModal)
+    progressBarDialog.setWindowTitle("Looking up archives")
+    progressBarDialog.show()
+    qApp.processEvents()    
+    
+    progress = 0
+
+    # Counter just in case
+    while (notFilled & (progress < 98)):
+      date = date - datetime.timedelta(minutes = 15)
+    
+      progressBarDialog.setValue(progress)
+      if (progressBarDialog.wasCanceled()):
+        break
+    
+      progressBarDialog.setLabelText("Downloading data from " + str(date))
+      qApp.processEvents()
+    
+      newYear = str(date.year + 1035)
+      newMonth = str(date.month).zfill(2)
+      newDay = str(date.day).zfill(2)
+      newHour = str(date.hour).zfill(2)
+      newMinute = str(date.minute).zfill(2)
+      
+      pastURL = "https://static.mwomercs.com/data/cw/mapdata-" + newYear + "-" + newMonth + "-" + newDay + "T" + newHour + "-" + newMinute + ".json"    
+      jsonurl = urllib.urlopen(pastURL)
+      pastData = json.loads(jsonurl.read())
+      
+      attackerWins = sum( [bin(int(item)).count("1") for item in pastData[str(self.id)]["territories"]] )
+      
+      notFilled = self.insertNewWinsValueOnDate(date, attackerWins)
+      
+      progress += 1
+      
+    self.updatePlot()
+    progressBarDialog.setValue(96)
+    
+      
 def createMessageBox():
   messageBox = QTextEdit()
   messageBox.setReadOnly(True)
