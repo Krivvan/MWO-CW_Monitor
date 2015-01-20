@@ -1,6 +1,6 @@
 URL = "https://static.mwomercs.com/data/cw/mapdata.json"
 TOTAL_TERRITORIES = 15.0
-VERSION = 0.30
+VERSION = 0.35
 
 import sys
 
