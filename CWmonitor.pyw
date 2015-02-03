@@ -1,6 +1,6 @@
 URL = "https://static.mwomercs.com/data/cw/mapdata.json"
 TOTAL_TERRITORIES = 15.0
-VERSION = 0.35
+VERSION = 0.351
 
 import sys
 
@@ -145,11 +145,10 @@ class MainWindow(QMainWindow):
       return None
     filesPageData = filesPage.read();
     
-    regex = re.compile("Download CWMonitor-(.*)\.zip")
+    regex = re.compile("<span>Download CWMonitor-(.*)\.zip")
     
     try:
       sourceforgeVersion = float(regex.search(filesPageData).group(1))
-      
       if (sourceforgeVersion > VERSION):
         box = QMessageBox()
         box.setTextFormat(Qt.RichText)
@@ -393,14 +392,19 @@ class CWmonitor(QWidget):
     self.defendTable.setSortingEnabled(False)
     self.defendTable.setRowCount(0)
     for id in range (1,2241):
-      if ((self.data[str(id)]["invading"]["id"] != "0") and ((self.data[str(id)]["owner"]["id"] == self.factionID) or (self.data[str(id)]["owner"]["id"] in self.factionID))):
-        self.addToDefendTable(self.data[str(id)], id)
+      if (self.data[str(id)]["invading"]["id"] != "0"):
+        if ((isinstance(self.factionID,list)) and (int(self.data[str(id)]["owner"]["id"]) in [int(x) for x in self.factionID])):
+          self.addToDefendTable(self.data[str(id)], id)
+        elif (self.data[str(id)]["owner"]["id"] == self.factionID):
+          self.addToDefendTable(self.data[str(id)], id)
     self.defendTable.setSortingEnabled(True)
     
     self.attackTable.setSortingEnabled(False)
     self.attackTable.setRowCount(0)
     for id in range (1,2241):
-      if ((self.data[str(id)]["invading"]["id"] == self.factionID) or (self.data[str(id)]["invading"]["id"] in self.factionID)):
+      if (isinstance(self.factionID,list) and (int(self.data[str(id)]["invading"]["id"]) in [int(x) for x in self.factionID])):
+        self.addToAttackTable(self.data[str(id)], id)    
+      elif ((self.data[str(id)]["invading"]["id"] == self.factionID)):
         self.addToAttackTable(self.data[str(id)], id)
     self.attackTable.setSortingEnabled(True)
     
@@ -1110,6 +1114,7 @@ class PlanetDetailWindow(QWidget):
       if (progressBarDialog.wasCanceled()):
         break
     
+      # TODO: Date isn't in 3050 time, but this isn't high priority
       progressBarDialog.setLabelText("Downloading data from " + str(date))
       qApp.processEvents()
     
@@ -1120,14 +1125,20 @@ class PlanetDetailWindow(QWidget):
       newMinute = str(date.minute).zfill(2)
       
       pastURL = "https://static.mwomercs.com/data/cw/mapdata-" + newYear + "-" + newMonth + "-" + newDay + "T" + newHour + "-" + newMinute + ".json"    
-      jsonurl = urllib.urlopen(pastURL)
-      pastData = json.loads(jsonurl.read())
       
-      attackerWins = sum( [bin(int(item)).count("1") for item in pastData[str(self.id)]["territories"]] )
-      
-      notFilled = self.insertNewWinsValueOnDate(date, attackerWins)
-      
+      try:
+        jsonurl = urllib.urlopen(pastURL)
+        pastData = json.loads(jsonurl.read())
+        
+        attackerWins = sum( [bin(int(item)).count("1") for item in pastData[str(self.id)]["territories"]] )
+        notFilled = self.insertNewWinsValueOnDate(date, attackerWins)
+      except urllib2.URLError as e:
+        print e.reason
+        self.insertNewWinsValueOnDate(date, 0)
+      except ValueError as ev:
+        self.insertNewWinsValueOnDate(date, 0)
       progress += 1
+      self.updatePlot()
       
     self.updatePlot()
     progressBarDialog.setValue(96)
